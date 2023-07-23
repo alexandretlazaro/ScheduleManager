@@ -1,7 +1,5 @@
 package com.schedulemanager.packages.service;
 
-import java.time.DayOfWeek;
-import java.time.LocalTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -11,7 +9,6 @@ import org.springframework.util.Assert;
 
 import com.schedulemanager.packages.domain.AvailabilitySlot;
 import com.schedulemanager.packages.domain.Candidate;
-import com.schedulemanager.packages.domain.Interviewer;
 import com.schedulemanager.packages.repository.AvailabilitySlotRepository;
 
 @Service
@@ -43,11 +40,5 @@ public class AvailabilitySlotService {
 	public List<AvailabilitySlot> findByCandidate(Candidate candidate) {
 		return repository.findByCandidate(candidate);
 	}
-
-	public List<AvailabilitySlot> findByInterviewerAndTime(Interviewer interviewer,
-			List<LocalTime> candidateStartTimeList, List<LocalTime> candidateEndTimeList, List<DayOfWeek> candidateDayOfWeeks) {
-		return repository.findByInterviewerAndTime(interviewer, candidateStartTimeList, candidateEndTimeList, candidateDayOfWeeks);
-	}
-
 
 }

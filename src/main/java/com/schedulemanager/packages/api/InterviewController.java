@@ -5,12 +5,13 @@ import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.Optional;
-import java.util.Set;
-import java.util.TreeSet;
-import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -20,10 +21,13 @@ import com.schedulemanager.packages.domain.AvailabilitySlot;
 import com.schedulemanager.packages.domain.Candidate;
 import com.schedulemanager.packages.domain.Interviewer;
 import com.schedulemanager.packages.dto.AvailabilitySlotDTO;
-import com.schedulemanager.packages.dto.AvailabilitySlotDTO.InterviewerInfo;
+import com.schedulemanager.packages.dto.AvailabilitySlotDTO.CandidateInfoDTO;
+import com.schedulemanager.packages.dto.AvailabilitySlotDTO.InterviewerInfoDTO;
 import com.schedulemanager.packages.service.AvailabilitySlotService;
 import com.schedulemanager.packages.service.CandidateService;
 import com.schedulemanager.packages.service.InterviewerService;
+
+import jakarta.persistence.EntityNotFoundException;
 
 @RestController
 @RequestMapping("/api/v1/schedule/interview")
@@ -39,58 +43,65 @@ public class InterviewController {
 	CandidateService candidateService;
 
 	@GetMapping("/")
-	public AvailabilitySlotDTO getAllAvailabilitySlots(
+	public AvailabilitySlotDTO getAllAvailabilitySlots (
 			@RequestParam Long candidateId,
 			@RequestParam List<Long> interviewerIds) {
 
 		AvailabilitySlotDTO availabilitySlotDTO = new AvailabilitySlotDTO();
 
-		List<AvailabilitySlot> matchingInterviewerAvailabilitySlots = new ArrayList<>();
+		List<Interviewer> interviewersList = new ArrayList<>();
 
-		Optional<Candidate> candidate = candidateService.getCandidateById(candidateId);
+		List<AvailabilitySlot> matchedSlotsList = new ArrayList<>();
+
+		Optional<Candidate> candidateOptional = Optional.ofNullable(candidateService.getCandidateById(candidateId).orElseThrow(() -> 
+		new EntityNotFoundException("Candidate with ID " + candidateId + " not found")));
+
+		Candidate candidate = candidateOptional.get();
+
+		List<AvailabilitySlot> candidateSlotList = candidate.getInterviewSlotList();
+
+		for (Long interviewerId : interviewerIds) {
+
+			Optional<Interviewer> interviewerOptional = Optional.ofNullable(interviewerService.getInterviewerById(interviewerId).orElseThrow(() -> 
+			new EntityNotFoundException("Interviewer with ID " + interviewerId + "  not found")));
+
+			Interviewer interviewer = interviewerOptional.get();
+
+			interviewersList.add(interviewer);
+		}
 		
-		List<AvailabilitySlot> candidateAvailabilitySlots = candidate.get().getInterviewSlotList();
+		List<CandidateInfoDTO> candidateInfoList = new ArrayList<>();
 
-		List<Interviewer> interviewerIdsList = interviewerService.getInterviewersByIds(interviewerIds);
+		for (AvailabilitySlot candidateAvailabilitySlot : candidateSlotList) {
+			
+			CandidateInfoDTO candidateInfoDTO = new CandidateInfoDTO();
+			
+			candidateInfoDTO.setCandidateName(candidate.getName());
+			candidateInfoDTO.setDayOfWeek(candidateAvailabilitySlot.getDayOfWeek());
+			candidateInfoDTO.setStartTime(candidateAvailabilitySlot.getStartTime());
+			candidateInfoDTO.setEndTime(candidateAvailabilitySlot.getEndTime());
+			
+			candidateInfoList.add(candidateInfoDTO);
+			
+			for (Interviewer interviewer : interviewersList) {
 
-		List<LocalTime> candidateStartTimeList = candidate.get().getInterviewSlotList().stream()
-				.map(AvailabilitySlot::getStartTime).collect(Collectors.toList());
+				for (AvailabilitySlot interviewerAvailabilitySlot : interviewer.getAvailabilitySlotList()) {
 
-		List<LocalTime> candidateEndTimeList = candidate.get().getInterviewSlotList().stream()
-				.map(AvailabilitySlot::getEndTime).collect(Collectors.toList());
+					if(isTimeIsEquals(candidateAvailabilitySlot.getDayOfWeek(), interviewerAvailabilitySlot.getDayOfWeek(),
+							candidateAvailabilitySlot.getStartTime(), interviewerAvailabilitySlot.getStartTime(), 
+							candidateAvailabilitySlot.getEndTime(), interviewerAvailabilitySlot.getEndTime())) {
 
-		List<DayOfWeek> candidateDayOfWeekList = candidate.get().getInterviewSlotList().stream()
-				.map(AvailabilitySlot::getDayOfWeek).collect(Collectors.toList());
-
-		for (Interviewer i : interviewerIdsList) {
-
-			matchingInterviewerAvailabilitySlots = availabilitySlotService.findByInterviewerAndTime(i, candidateStartTimeList, candidateEndTimeList, candidateDayOfWeekList);
-
-			List<AvailabilitySlot> interviewerAvailabilitySlots = i.getAvailabilitySlotList();
-
-			for (AvailabilitySlot candidateSlot : candidateAvailabilitySlots) {
-				
-				for (AvailabilitySlot interviewerSlot : interviewerAvailabilitySlots) {
-					
-					if (candidateSlot.getDayOfWeek() == interviewerSlot.getDayOfWeek()) {
-						
-						if (isTimeOverlap(candidateSlot.getStartTime(), candidateSlot.getEndTime(),
-								interviewerSlot.getStartTime(), interviewerSlot.getEndTime())) {
-							
-							matchingInterviewerAvailabilitySlots.add(interviewerSlot);
-						}
+						matchedSlotsList.add(interviewerAvailabilitySlot);
 					}
 				}
 			}
 		}
 
-		availabilitySlotDTO.setCandidateName(candidate.get().getName());
+		List<InterviewerInfoDTO> interviewerInfoList = new ArrayList<>();
 
-		Set<InterviewerInfo> interviewerInfoList = new TreeSet<>(Comparator.comparing(InterviewerInfo::getStartTime));
+		for (AvailabilitySlot interviewerAvailabilitySlot : matchedSlotsList) {
 
-		for (AvailabilitySlot interviewerAvailabilitySlot : matchingInterviewerAvailabilitySlots) {
-
-			InterviewerInfo interviewerInfo = new InterviewerInfo();
+			InterviewerInfoDTO interviewerInfo = new InterviewerInfoDTO();
 
 			interviewerInfo.setInterviewerName(interviewerAvailabilitySlot.getInterviewer().getName());
 			interviewerInfo.setDayOfWeek(interviewerAvailabilitySlot.getDayOfWeek());
@@ -100,15 +111,24 @@ public class InterviewController {
 			interviewerInfoList.add(interviewerInfo);
 		}
 
-		availabilitySlotDTO.setInterviewerInfoList(new TreeSet<>(interviewerInfoList));
+		availabilitySlotDTO.setCandidateInfoList(candidateInfoList);
+		availabilitySlotDTO.setInterviewerInfoList(interviewerInfoList);
 
+		availabilitySlotDTO.getInterviewerInfoList().sort(Comparator.comparing(InterviewerInfoDTO::getInterviewerName));
+		
 		return availabilitySlotDTO;
 	}
-	
-	private boolean isTimeOverlap(LocalTime candidateStartTime, LocalTime candidateEndTime,
-			LocalTime interviewerStartTime, LocalTime interviewerEndTime) {
-        
-		return !candidateStartTime.isAfter(interviewerEndTime) && !candidateEndTime.isBefore(interviewerStartTime);
-    }
 
+	private boolean isTimeIsEquals(DayOfWeek candidateDayOfWeek, DayOfWeek interviewerDayOfWeek,
+			LocalTime candidateStartTime, LocalTime interviewerStartTime,
+			LocalTime candidateEndTime, LocalTime interviewerEndTime) {
+
+		return candidateDayOfWeek.equals(interviewerDayOfWeek) && candidateStartTime.equals(interviewerStartTime) && candidateEndTime.equals(interviewerEndTime);
+	}
+
+	@ExceptionHandler(NoSuchElementException.class)
+	public ResponseEntity<String> handleResourceNotFoundException(NoSuchElementException ex) {
+		return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Element not found");
+	}
+	
 }

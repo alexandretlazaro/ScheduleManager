@@ -2,9 +2,7 @@ package com.schedulemanager.packages.dto;
 
 import java.time.DayOfWeek;
 import java.time.LocalTime;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 
 import org.modelmapper.ModelMapper;
 
@@ -15,12 +13,12 @@ import lombok.Data;
 @Data
 public class AvailabilitySlotDTO {
 
-	private String candidateName;
+	private List<CandidateInfoDTO> candidateInfoList;
 	private DayOfWeek dayOfWeek;
 	private LocalTime startTime;
 	private LocalTime endTime;
-	private Set<InterviewerInfo> interviewerInfoList;
-	
+	private List<InterviewerInfoDTO> interviewerInfoList;
+
 
 	public static AvailabilitySlotDTO create(AvailabilitySlot availabilitySlot) {
 
@@ -30,25 +28,23 @@ public class AvailabilitySlotDTO {
 	}
 
 	@Data
-	public static class InterviewerInfo implements Comparable<InterviewerInfo> {
+	public static class InterviewerInfoDTO {
 
 		private DayOfWeek dayOfWeek;
 		private String interviewerName;
 		private LocalTime startTime;
 		private LocalTime endTime;
-		 private List<AvailabilitySlot> availabilitySlotList = new ArrayList<>();
-		
-		@Override
-        public int compareTo(InterviewerInfo other) {
-            return this.startTime.compareTo(other.startTime);
-        }
 
 	}
-	
+
 	@Data
-	public static class CandidateInfo {
+	public static class CandidateInfoDTO {
 
 		private String candidateName;
+		private DayOfWeek dayOfWeek;
+		private String interviewerName;
+		private LocalTime startTime;
+		private LocalTime endTime;
 
 	}
 }

@@ -11,8 +11,10 @@ import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -26,6 +28,8 @@ import com.schedulemanager.packages.dto.AvailabilitySlotDTO;
 import com.schedulemanager.packages.dto.CandidateDTO;
 import com.schedulemanager.packages.service.AvailabilitySlotService;
 import com.schedulemanager.packages.service.CandidateService;
+
+import jakarta.persistence.EntityNotFoundException;
 
 @RestController
 @RequestMapping("/api/v1/schedule/candidate")
@@ -77,13 +81,10 @@ public class CandidateController {
 	@GetMapping("/{id}")
 	public ResponseEntity<Candidate> getCandidateById(@PathVariable Long id) {
 
-		Optional<Candidate> c = candidateService.getCandidateById(id);
+		Optional<Candidate> candidateOptional = Optional.ofNullable(candidateService.getCandidateById(id).orElseThrow(() -> 
+		new EntityNotFoundException("Candidate with ID " + id + " not found")));
 
-		if(!c.isPresent()) {
-			return ResponseEntity.notFound().build();
-		}
-
-		return ResponseEntity.ok(c.get());
+		return ResponseEntity.ok(candidateOptional.get());
 	}
 
 	@PostMapping
@@ -96,41 +97,46 @@ public class CandidateController {
 		return ResponseEntity.created(location).build();
 	}
 
-	@PostMapping("/candidate-slot/{candidateId}")
-	public ResponseEntity<Candidate> saveInterviewerAvailabilitySlot(@PathVariable Long candidateId, @RequestBody AvailabilitySlot availabilitySlot) {
+	@PostMapping("{candidateId}/candidate-slot")
+	public ResponseEntity<Candidate> saveCandidateAvailabilitySlot(@PathVariable Long candidateId, @RequestBody AvailabilitySlot availabilitySlot) {
 
 		List<AvailabilitySlot> interviewSlots = new ArrayList<>();
-		
+
 		if(this.localTimeValidate(availabilitySlot)) {
 
-			Optional<Candidate> candidate = candidateService.getCandidateById(candidateId);
+			if (candidateService.isTimeSlotAlreadyExists(candidateId, availabilitySlot)) {
+				return ResponseEntity.badRequest().body(null);
+			}
+
+			Optional<Candidate> candidateOptional = Optional.ofNullable(candidateService.getCandidateById(candidateId).orElseThrow(() -> 
+			new EntityNotFoundException("Candidate with ID " + candidateId + " not found")));
 
 			LocalTime startTime = availabilitySlot.getStartTime();
 			LocalTime endTime = availabilitySlot.getEndTime();
-			
+
 			LocalTime slot1Hour = startTime;
-			
+
 			while(slot1Hour.isBefore(endTime)) {
-				
+
 				AvailabilitySlot slot = new AvailabilitySlot();
-				
+
 				LocalTime currentStart = slot1Hour;
 				LocalTime currentEndTime = currentStart.plusHours(1);
-				
-				slot.setCandidate(candidate.get());
+
+				slot.setCandidate(candidateOptional.get());
 				slot.setDayOfWeek(availabilitySlot.getDayOfWeek());
 				slot.setStartTime(currentStart);
 				slot.setEndTime(currentEndTime);
-				
+
 				interviewSlots.add(slot);
-				
+
 				slot1Hour = currentEndTime;
-				
+
 			}
-			
+
 			List<AvailabilitySlot> savedSlots = interviewSlots.stream().map(slotService::save).collect(Collectors.toList());
 
-			Candidate savedCandidate = candidate.get();
+			Candidate savedCandidate = candidateOptional.get();
 			savedCandidate.setInterviewSlotList(savedSlots);
 
 			return ResponseEntity.ok(savedCandidate);
@@ -139,12 +145,50 @@ public class CandidateController {
 		return ResponseEntity.badRequest().build();
 	}
 
+	@PatchMapping("{id}")
+	public ResponseEntity<CandidateDTO> updateCandidate(@PathVariable Long id, @RequestBody Candidate candidate) {
+
+		candidate.setId(id);
+
+		CandidateDTO dto = candidateService.update(id, candidate);
+
+		return dto != null ?
+				ResponseEntity.ok(dto) :
+					ResponseEntity.notFound().build();
+	}
+
+	@DeleteMapping("{id}")
+	public ResponseEntity<CandidateDTO> deleteCandidate(@PathVariable Long id) {
+
+		Optional<Candidate> candidateOptional = Optional.ofNullable(candidateService.getCandidateById(id).orElseThrow(() -> 
+		new EntityNotFoundException("Candidate with ID " + id + " not found")));
+		
+		candidateService.delete(candidateOptional.get().getId());
+
+		return ResponseEntity.ok().build();
+	}
+
+	@DeleteMapping("{candidateId}/candidate-slot/{availabilitySlotId}")
+	public ResponseEntity<CandidateDTO> deleteCandidateSlot(@PathVariable Long candidateId, @PathVariable Long availabilitySlotId) {
+
+		Optional<Candidate> candidateOptional = Optional.ofNullable(candidateService.getCandidateById(candidateId).orElseThrow(() -> 
+		new EntityNotFoundException("Candidate with ID " + candidateId + " not found")));
+		
+		candidateService.deleteSlot(candidateOptional.get().getId(), availabilitySlotId);
+
+		return ResponseEntity.ok().build();
+	}
+
 	private boolean localTimeValidate(AvailabilitySlot availabilitySlot) {
 
 		boolean isValid = true;
 
 		LocalTime startTime = availabilitySlot.getStartTime();
 		LocalTime endTime = availabilitySlot.getEndTime();
+
+		if(endTime.isBefore(startTime)) {
+			isValid = false;
+		}
 
 		if(!(startTime.getMinute() == 0 && startTime.getSecond() == 0)) {
 
@@ -163,9 +207,14 @@ public class CandidateController {
 
 		return ServletUriComponentsBuilder.fromCurrentRequest().path("/{id}").buildAndExpand(id).toUri();
 	}
-	
+
 	@ExceptionHandler(NoSuchElementException.class)
-    public ResponseEntity<String> handleResourceNotFoundException(NoSuchElementException ex) {
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Element not found");
-    }
+	public ResponseEntity<String> handleResourceNotFoundException(NoSuchElementException ex) {
+		return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Element not found");
+	}
+
+	@ExceptionHandler(EntityNotFoundException.class)
+	public ResponseEntity<String> handleEntityNotFoundException(EntityNotFoundException ex) {
+		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Informed ID does not exist");
+	}
 }
