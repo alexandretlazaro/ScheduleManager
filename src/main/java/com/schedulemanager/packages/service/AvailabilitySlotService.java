@@ -1,5 +1,7 @@
 package com.schedulemanager.packages.service;
 
+import java.time.DayOfWeek;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -42,6 +44,23 @@ public class AvailabilitySlotService {
 
 	public List<AvailabilitySlot> findByCandidate(Candidate candidate) {
 		return repository.findByCandidate(candidate);
+	}
+	
+	public boolean isTimeAlreadyExistsForInterviewer(Long interviewerId, DayOfWeek dayOfWeek, LocalTime startTime,
+			LocalTime endTime) {
+
+		Integer count = repository.countConflictingTimeSlotsForInterviewer(interviewerId, dayOfWeek, startTime, endTime);
+		
+		return count > 0;
+	}
+
+	public boolean isTimeAlreadyExistsForCandidate(Long candidateId, DayOfWeek dayOfWeek, LocalTime startTime,
+			LocalTime endTime) {
+
+		Integer count = repository.countConflictingTimeSlotsForCandidate(candidateId, dayOfWeek, startTime, endTime);
+		
+		return count > 0;
+	
 	}
 
 }

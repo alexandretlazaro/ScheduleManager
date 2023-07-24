@@ -16,6 +16,14 @@ public abstract class Utils {
 		LocalTime startTime = availabilitySlot.getStartTime();
 		LocalTime endTime = availabilitySlot.getEndTime();
 
+		if(startTime.getHour() > 23 || startTime.getMinute() > 59) {
+			isValid = false;
+		}
+
+		if(endTime.getHour() > 23 || endTime.getMinute() > 59) {
+			isValid = false;
+		}
+
 		if(endTime.isBefore(startTime)) {
 			isValid = false;
 		}
@@ -32,7 +40,7 @@ public abstract class Utils {
 
 		return isValid;
 	}
-	
+
 	public static URI getURI(Long id) {
 
 		return ServletUriComponentsBuilder.fromCurrentRequest().path("/{id}").buildAndExpand(id).toUri();

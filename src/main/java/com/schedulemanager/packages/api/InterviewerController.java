@@ -29,6 +29,8 @@ import com.schedulemanager.packages.service.AvailabilitySlotService;
 import com.schedulemanager.packages.service.InterviewerService;
 import com.schedulemanager.packages.utils.Utils;
 
+import jakarta.persistence.EntityNotFoundException;
+
 @RestController
 @RequestMapping("/api/v1/schedule/interviewer")
 public class InterviewerController {
@@ -102,10 +104,19 @@ public class InterviewerController {
 		if(Utils.localTimeValidate(availabilitySlot)) {
 
 			Optional<Interviewer> interviewerOptional = interviewerService.getInterviewerById(interviewerId);
-
+			
 			LocalTime startTime = availabilitySlot.getStartTime();
 			LocalTime endTime = availabilitySlot.getEndTime();
 
+			boolean timeAlreadyExists = slotService.isTimeAlreadyExistsForInterviewer(interviewerId, 
+					availabilitySlot.getDayOfWeek(),
+					availabilitySlot.getStartTime(),
+					availabilitySlot.getEndTime());
+	        
+			if (timeAlreadyExists) {
+	            throw new IllegalArgumentException("Time already exists for the interviewer on this day.");
+	        }
+			
 			LocalTime slot1Hour = startTime;
 
 			while(slot1Hour.isBefore(endTime)) {
@@ -173,6 +184,16 @@ public class InterviewerController {
 
 	@ExceptionHandler(NoSuchElementException.class)
 	public ResponseEntity<String> handleResourceNotFoundException(NoSuchElementException ex) {
-		return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Element not found");
+		return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ex.getMessage());
+	}
+
+	@ExceptionHandler(EntityNotFoundException.class)
+	public ResponseEntity<String> handleEntityNotFoundException(EntityNotFoundException ex) {
+		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(ex.getMessage());
+	}
+
+	@ExceptionHandler(IllegalArgumentException.class)
+	public ResponseEntity<String> handleIllegalArgumentException(IllegalArgumentException ex) {
+		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(ex.getMessage());
 	}
 }

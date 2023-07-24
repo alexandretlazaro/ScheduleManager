@@ -103,15 +103,20 @@ public class CandidateController {
 
 		if(Utils.localTimeValidate(availabilitySlot)) {
 
-			if (candidateService.isTimeSlotAlreadyExists(candidateId, availabilitySlot)) {
-				return ResponseEntity.badRequest().body(null);
-			}
-
 			Optional<Candidate> candidateOptional = candidateService.getCandidateById(candidateId);
-
+			
 			LocalTime startTime = availabilitySlot.getStartTime();
 			LocalTime endTime = availabilitySlot.getEndTime();
 
+			boolean timeAlreadyExists = slotService.isTimeAlreadyExistsForCandidate(candidateId, 
+					availabilitySlot.getDayOfWeek(),
+					availabilitySlot.getStartTime(),
+					availabilitySlot.getEndTime());
+	        
+			if (timeAlreadyExists) {
+	            throw new IllegalArgumentException("Time already exists for the candidate on this day.");
+	        }
+			
 			LocalTime slot1Hour = startTime;
 
 			while(slot1Hour.isBefore(endTime)) {
@@ -179,11 +184,16 @@ public class CandidateController {
 
 	@ExceptionHandler(NoSuchElementException.class)
 	public ResponseEntity<String> handleResourceNotFoundException(NoSuchElementException ex) {
-		return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Element not found");
+		return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ex.getMessage());
 	}
 
 	@ExceptionHandler(EntityNotFoundException.class)
 	public ResponseEntity<String> handleEntityNotFoundException(EntityNotFoundException ex) {
-		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Informed ID does not exist");
+		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(ex.getMessage());
+	}
+
+	@ExceptionHandler(IllegalArgumentException.class)
+	public ResponseEntity<String> handleIllegalArgumentException(IllegalArgumentException ex) {
+		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(ex.getMessage());
 	}
 }

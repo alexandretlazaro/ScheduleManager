@@ -32,7 +32,7 @@ public class CandidateService {
 
 		Optional<Candidate> candidateOptional = Optional.ofNullable(repository.findById(id).orElseThrow(() -> 
 		new EntityNotFoundException("Candidate with ID " + id + " not found")));
-		
+
 		return candidateOptional;
 	}
 
@@ -53,20 +53,6 @@ public class CandidateService {
 		repository.save(candidate);
 
 		return CandidateDTO.create(candidateDb);
-	}
-
-	public boolean isTimeSlotAlreadyExists(Long id, AvailabilitySlot slot) {
-
-		Optional<Candidate> candidateOptional = Optional.ofNullable(repository.findById(id).orElseThrow(() -> 
-		new EntityNotFoundException("Candidate with ID " + id + " not found")));
-
-
-		Candidate candidateDb = candidateOptional.get();
-
-		return candidateDb.getInterviewSlotList().stream()
-				.anyMatch(i -> i.getDayOfWeek().equals(slot.getDayOfWeek()) &&
-						i.getStartTime() == slot.getStartTime() &&
-						i.getEndTime() == slot.getEndTime());
 	}
 
 	public void delete(Long id) {
