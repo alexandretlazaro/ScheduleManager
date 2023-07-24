@@ -37,8 +37,6 @@ public class AvailabilitySlotService {
 
 	public AvailabilitySlot save(AvailabilitySlot availabilitySlot) {
 
-		Assert.isNull(availabilitySlot.getId(), "It was not possible save the interview slot!");
-
 		return repository.save(availabilitySlot);
 	}
 
