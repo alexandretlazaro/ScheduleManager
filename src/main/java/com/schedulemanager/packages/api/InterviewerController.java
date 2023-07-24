@@ -20,7 +20,6 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 import com.schedulemanager.packages.domain.AvailabilitySlot;
 import com.schedulemanager.packages.domain.Interviewer;
@@ -28,8 +27,7 @@ import com.schedulemanager.packages.dto.AvailabilitySlotDTO;
 import com.schedulemanager.packages.dto.InterviewerDTO;
 import com.schedulemanager.packages.service.AvailabilitySlotService;
 import com.schedulemanager.packages.service.InterviewerService;
-
-import jakarta.persistence.EntityNotFoundException;
+import com.schedulemanager.packages.utils.Utils;
 
 @RestController
 @RequestMapping("/api/v1/schedule/interviewer")
@@ -42,7 +40,7 @@ public class InterviewerController {
 	AvailabilitySlotService slotService;
 
 	@GetMapping("/")
-	public List<InterviewerDTO> getAllInterviewers() {
+	public ResponseEntity<List<InterviewerDTO>> getAllInterviewers() {
 
 		List<Interviewer> interviewers = interviewerService.getInterviewers();
 
@@ -75,14 +73,13 @@ public class InterviewerController {
 			interviewerDTOsList.add(interviewerDTO);
 		}
 
-		return interviewerDTOsList;
+		return ResponseEntity.ok(interviewerDTOsList);
 	}
 
 	@GetMapping("/{interviewerId}")
 	public ResponseEntity<Interviewer> getInterviewerById(@PathVariable Long interviewerId) {
 
-		Optional<Interviewer> interviewerOptional = Optional.ofNullable(interviewerService.getInterviewerById(interviewerId).orElseThrow(() -> 
-		new EntityNotFoundException("Interviewer with ID " + interviewerId + "  not found")));
+		Optional<Interviewer> interviewerOptional = interviewerService.getInterviewerById(interviewerId);
 
 		return ResponseEntity.ok(interviewerOptional.get());
 	}
@@ -92,7 +89,7 @@ public class InterviewerController {
 
 		Interviewer i = interviewerService.save(interviewer);
 
-		URI location = getURI(i.getId());
+		URI location = Utils.getURI(i.getId());
 
 		return ResponseEntity.created(location).build();
 	}
@@ -102,10 +99,9 @@ public class InterviewerController {
 
 		List<AvailabilitySlot> interviewSlots = new ArrayList<>();
 
-		if(this.localTimeValidate(availabilitySlot)) {
+		if(Utils.localTimeValidate(availabilitySlot)) {
 
-			Optional<Interviewer> interviewerOptional = Optional.ofNullable(interviewerService.getInterviewerById(interviewerId).orElseThrow(() -> 
-			new EntityNotFoundException("Interviewer with ID " + interviewerId + "  not found")));
+			Optional<Interviewer> interviewerOptional = interviewerService.getInterviewerById(interviewerId);
 
 			LocalTime startTime = availabilitySlot.getStartTime();
 			LocalTime endTime = availabilitySlot.getEndTime();
@@ -143,7 +139,9 @@ public class InterviewerController {
 	@PatchMapping("/interviewer-slot/{id}")
 	public ResponseEntity<InterviewerDTO> updateInterivewer(@PathVariable Long id, @RequestBody Interviewer interviewer) {
 
-		interviewer.setId(id);
+		Optional<Interviewer> interviewerOptional = interviewerService.getInterviewerById(id);
+		
+		interviewer.setId(interviewerOptional.get().getId());
 
 		InterviewerDTO dto = interviewerService.update(id, interviewer);
 
@@ -155,7 +153,9 @@ public class InterviewerController {
 	@DeleteMapping("{id}")
 	public ResponseEntity<InterviewerDTO> deleteInterviewer(@PathVariable Long id) {
 
-		interviewerService.delete(id);
+		Optional<Interviewer> interviewerOptional = interviewerService.getInterviewerById(id);
+		
+		interviewerService.delete(interviewerOptional.get().getId());
 
 		return ResponseEntity.ok().build();
 	}
@@ -163,38 +163,12 @@ public class InterviewerController {
 	@DeleteMapping("{interviewerId}/interviewer-slot/{availabilitySlotId}")
 	public ResponseEntity<InterviewerDTO> deleteInterviewerSlot(@PathVariable Long interviewerId, @PathVariable Long availabilitySlotId) {
 
-		interviewerService.deleteSlot(interviewerId, availabilitySlotId);
+		Optional<Interviewer> interviewerOptional = interviewerService.getInterviewerById(interviewerId);
+		Optional<AvailabilitySlot> availabilitySlotOptional = slotService.getAvailabilitySlotById(availabilitySlotId);
+		
+		interviewerService.deleteSlot(interviewerOptional.get().getId(), availabilitySlotOptional.get().getId());
 
 		return ResponseEntity.ok().build();
-	}
-
-	private URI getURI(Long id) {
-
-		return ServletUriComponentsBuilder.fromCurrentRequest().path("/{id}").buildAndExpand(id).toUri();
-	}
-
-	private boolean localTimeValidate(AvailabilitySlot availabilitySlot) {
-
-		boolean isValid = true;
-
-		LocalTime startTime = availabilitySlot.getStartTime();
-		LocalTime endTime = availabilitySlot.getEndTime();
-
-		if(endTime.isBefore(startTime)) {
-			isValid = false;
-		}
-
-		if(!(startTime.getMinute() == 0 && startTime.getSecond() == 0)) {
-
-			isValid = false;
-		}
-
-		if(!(endTime.getMinute() == 0 && endTime.getSecond() == 0)) {
-
-			isValid = false;
-		}
-
-		return isValid;
 	}
 
 	@ExceptionHandler(NoSuchElementException.class)

@@ -30,8 +30,10 @@ public class CandidateService {
 
 	public Optional<Candidate> getCandidateById(Long id) {
 
-		return repository.findById(id);
-
+		Optional<Candidate> candidateOptional = Optional.ofNullable(repository.findById(id).orElseThrow(() -> 
+		new EntityNotFoundException("Candidate with ID " + id + " not found")));
+		
+		return candidateOptional;
 	}
 
 	public Candidate save(Candidate candidate) {
@@ -65,8 +67,6 @@ public class CandidateService {
 				.anyMatch(i -> i.getDayOfWeek().equals(slot.getDayOfWeek()) &&
 						i.getStartTime() == slot.getStartTime() &&
 						i.getEndTime() == slot.getEndTime());
-
-
 	}
 
 	public void delete(Long id) {

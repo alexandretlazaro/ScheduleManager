@@ -30,7 +30,10 @@ public class InterviewerService {
 
 	public Optional<Interviewer> getInterviewerById(Long id) {
 
-		return repository.findById(id);
+		Optional<Interviewer> interviewerOptional = Optional.ofNullable(repository.findById(id).orElseThrow(() -> 
+		new EntityNotFoundException("Interviewer with ID " + id + " not found")));
+		
+		return interviewerOptional;
 
 	}
 

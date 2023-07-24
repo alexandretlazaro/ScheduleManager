@@ -11,6 +11,8 @@ import com.schedulemanager.packages.domain.AvailabilitySlot;
 import com.schedulemanager.packages.domain.Candidate;
 import com.schedulemanager.packages.repository.AvailabilitySlotRepository;
 
+import jakarta.persistence.EntityNotFoundException;
+
 @Service
 public class AvailabilitySlotService {
 
@@ -24,9 +26,10 @@ public class AvailabilitySlotService {
 
 	public Optional<AvailabilitySlot> getAvailabilitySlotById(Long id) {
 
-		Assert.isNull(id, "id not found!");
-
-		return repository.findById(id);
+		Optional<AvailabilitySlot> optional = Optional.ofNullable(repository.findById(id).orElseThrow(() -> 
+		new EntityNotFoundException("Availability Slot with ID " + id + "  not found")));
+		
+		return optional;
 
 	}
 

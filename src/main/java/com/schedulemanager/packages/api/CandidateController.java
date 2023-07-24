@@ -20,7 +20,6 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 import com.schedulemanager.packages.domain.AvailabilitySlot;
 import com.schedulemanager.packages.domain.Candidate;
@@ -28,6 +27,7 @@ import com.schedulemanager.packages.dto.AvailabilitySlotDTO;
 import com.schedulemanager.packages.dto.CandidateDTO;
 import com.schedulemanager.packages.service.AvailabilitySlotService;
 import com.schedulemanager.packages.service.CandidateService;
+import com.schedulemanager.packages.utils.Utils;
 
 import jakarta.persistence.EntityNotFoundException;
 
@@ -42,7 +42,7 @@ public class CandidateController {
 	AvailabilitySlotService slotService;
 
 	@GetMapping("/")
-	public List<CandidateDTO> getAllCandidates() {
+	public ResponseEntity<List<CandidateDTO>> getAllCandidates() {
 
 		List<Candidate> candidates = candidateService.getCandidates();
 
@@ -75,14 +75,13 @@ public class CandidateController {
 			candidateDTOsList.add(candidateDTO);
 		}
 
-		return candidateDTOsList;
+		return ResponseEntity.ok(candidateDTOsList);
 	}
 
 	@GetMapping("/{id}")
 	public ResponseEntity<Candidate> getCandidateById(@PathVariable Long id) {
 
-		Optional<Candidate> candidateOptional = Optional.ofNullable(candidateService.getCandidateById(id).orElseThrow(() -> 
-		new EntityNotFoundException("Candidate with ID " + id + " not found")));
+		Optional<Candidate> candidateOptional = candidateService.getCandidateById(id);
 
 		return ResponseEntity.ok(candidateOptional.get());
 	}
@@ -92,7 +91,7 @@ public class CandidateController {
 
 		Candidate i = candidateService.save(candidate);
 
-		URI location = getURI(i.getId());
+		URI location = Utils.getURI(i.getId());
 
 		return ResponseEntity.created(location).build();
 	}
@@ -102,14 +101,13 @@ public class CandidateController {
 
 		List<AvailabilitySlot> interviewSlots = new ArrayList<>();
 
-		if(this.localTimeValidate(availabilitySlot)) {
+		if(Utils.localTimeValidate(availabilitySlot)) {
 
 			if (candidateService.isTimeSlotAlreadyExists(candidateId, availabilitySlot)) {
 				return ResponseEntity.badRequest().body(null);
 			}
 
-			Optional<Candidate> candidateOptional = Optional.ofNullable(candidateService.getCandidateById(candidateId).orElseThrow(() -> 
-			new EntityNotFoundException("Candidate with ID " + candidateId + " not found")));
+			Optional<Candidate> candidateOptional = candidateService.getCandidateById(candidateId);
 
 			LocalTime startTime = availabilitySlot.getStartTime();
 			LocalTime endTime = availabilitySlot.getEndTime();
@@ -148,7 +146,9 @@ public class CandidateController {
 	@PatchMapping("{id}")
 	public ResponseEntity<CandidateDTO> updateCandidate(@PathVariable Long id, @RequestBody Candidate candidate) {
 
-		candidate.setId(id);
+		Optional<Candidate> candidateOptional = candidateService.getCandidateById(id);
+		
+		candidate.setId(candidateOptional.get().getId());
 
 		CandidateDTO dto = candidateService.update(id, candidate);
 
@@ -160,8 +160,7 @@ public class CandidateController {
 	@DeleteMapping("{id}")
 	public ResponseEntity<CandidateDTO> deleteCandidate(@PathVariable Long id) {
 
-		Optional<Candidate> candidateOptional = Optional.ofNullable(candidateService.getCandidateById(id).orElseThrow(() -> 
-		new EntityNotFoundException("Candidate with ID " + id + " not found")));
+		Optional<Candidate> candidateOptional = candidateService.getCandidateById(id);
 		
 		candidateService.delete(candidateOptional.get().getId());
 
@@ -171,41 +170,11 @@ public class CandidateController {
 	@DeleteMapping("{candidateId}/candidate-slot/{availabilitySlotId}")
 	public ResponseEntity<CandidateDTO> deleteCandidateSlot(@PathVariable Long candidateId, @PathVariable Long availabilitySlotId) {
 
-		Optional<Candidate> candidateOptional = Optional.ofNullable(candidateService.getCandidateById(candidateId).orElseThrow(() -> 
-		new EntityNotFoundException("Candidate with ID " + candidateId + " not found")));
+		Optional<Candidate> candidateOptional = candidateService.getCandidateById(candidateId);
 		
 		candidateService.deleteSlot(candidateOptional.get().getId(), availabilitySlotId);
 
 		return ResponseEntity.ok().build();
-	}
-
-	private boolean localTimeValidate(AvailabilitySlot availabilitySlot) {
-
-		boolean isValid = true;
-
-		LocalTime startTime = availabilitySlot.getStartTime();
-		LocalTime endTime = availabilitySlot.getEndTime();
-
-		if(endTime.isBefore(startTime)) {
-			isValid = false;
-		}
-
-		if(!(startTime.getMinute() == 0 && startTime.getSecond() == 0)) {
-
-			isValid = false;
-		}
-
-		if(!(endTime.getMinute() == 0 && endTime.getSecond() == 0)) {
-
-			isValid = false;
-		}
-
-		return isValid;
-	}
-
-	private URI getURI(Long id) {
-
-		return ServletUriComponentsBuilder.fromCurrentRequest().path("/{id}").buildAndExpand(id).toUri();
 	}
 
 	@ExceptionHandler(NoSuchElementException.class)

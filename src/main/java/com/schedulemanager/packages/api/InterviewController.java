@@ -43,7 +43,7 @@ public class InterviewController {
 	CandidateService candidateService;
 
 	@GetMapping("/")
-	public AvailabilitySlotDTO getAllAvailabilitySlots (
+	public ResponseEntity<AvailabilitySlotDTO> getAllAvailabilitySlots (
 			@RequestParam Long candidateId,
 			@RequestParam List<Long> interviewerIds) {
 
@@ -53,8 +53,7 @@ public class InterviewController {
 
 		List<AvailabilitySlot> matchedSlotsList = new ArrayList<>();
 
-		Optional<Candidate> candidateOptional = Optional.ofNullable(candidateService.getCandidateById(candidateId).orElseThrow(() -> 
-		new EntityNotFoundException("Candidate with ID " + candidateId + " not found")));
+		Optional<Candidate> candidateOptional = candidateService.getCandidateById(candidateId);
 
 		Candidate candidate = candidateOptional.get();
 
@@ -116,7 +115,7 @@ public class InterviewController {
 
 		availabilitySlotDTO.getInterviewerInfoList().sort(Comparator.comparing(InterviewerInfoDTO::getInterviewerName));
 		
-		return availabilitySlotDTO;
+		return ResponseEntity.ok(availabilitySlotDTO);
 	}
 
 	private boolean isTimeIsEquals(DayOfWeek candidateDayOfWeek, DayOfWeek interviewerDayOfWeek,
@@ -131,4 +130,8 @@ public class InterviewController {
 		return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Element not found");
 	}
 	
+	@ExceptionHandler(EntityNotFoundException.class)
+	public ResponseEntity<String> handleEntityNotFoundException(EntityNotFoundException ex) {
+		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Informed ID does not exist");
+	}
 }
